@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Grover’s Algorithm Demo</title>
+<style>
+:root{--bg:#fafaf7;--card:#fff;--tx:#1d1d1f;--mut:#6b6b70;--ac:#6d4aff;--ac2:#ff7a45;--bd:#e3e3dd;--ok:#118a4f;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#121218;--card:#1b1b24;--tx:#ececf1;--mut:#9a9aa6;--ac:#9b86ff;--ac2:#ff9a6b;--bd:#2d2d3a;--ok:#4ad08a;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#121218;--card:#1b1b24;--tx:#ececf1;--mut:#9a9aa6;--ac:#9b86ff;--ac2:#ff9a6b;--bd:#2d2d3a;--ok:#4ad08a;color-scheme:dark}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--tx);font:16px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:760px;margin:0 auto;padding:24px 16px 48px}
+h1{font-size:1.7rem;margin:0 0 4px}.sub{color:var(--mut);margin:0 0 20px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:16px;margin-bottom:14px}
+.card h2{font-size:.85rem;letter-spacing:.04em;color:var(--ac);margin:0 0 8px}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+select,button{font:inherit;padding:8px 12px;border-radius:9px;border:1px solid var(--bd);background:var(--bg);color:var(--tx)}
+button{background:var(--ac);color:#fff;border:0;cursor:pointer;font-weight:600}
+button.alt{background:var(--ac2);color:#1d1d1f}
+button.quiet{background:var(--bg);color:var(--tx);border:1px solid var(--bd);font-weight:500}
+canvas{width:100%;height:160px;display:block}
+.mono{font-family:ui-monospace,Menlo,monospace}.ok{color:var(--ok);font-weight:600}.mut{color:var(--mut);font-size:.9rem}
+</style></head><body><main>
+<h1>Grover’s Algorithm Demo</h1>
+<p class="sub">A classical simulation of Grover’s algorithm demonstrates how a quantum computer can search an unsorted list of N items using roughly the square root of N steps, compared with about N/2 steps on average for a conventional computer.</p>
+
+<div class="card"><h2>1 · Select a search space</h2><div class="row">
+<label>Qubits n = <select id="n"></select></label>
+<label>Marked item = <select id="m"></select></label>
+<button id="rnd" class="alt">Input random marked item</button></div>
+<p class="mut" style="margin:10px 0 0">The list has N = 2ⁿ items. The <b>marked item</b> is the single entry the search is trying to find. The algorithm does not know which one it is; it can only ask an oracle whether a given item is the marked one.</p>
+<p id="s1" class="mut"></p></div>
+
+<div class="card"><h2>2 · Probability of each item</h2><canvas id="c1"></canvas>
+<div class="row" style="margin-top:8px"><button id="step">Apply one iteration</button><button id="rst" class="quiet">Reset</button><span id="s2" class="mono"></span></div>
+<p class="mut" style="margin:10px 0 0">Each iteration applies the oracle, which flips the sign of the marked item’s amplitude, followed by the diffusion step, which reflects every amplitude about the average. Together they raise the marked item’s probability (orange) and lower the others (purple).</p></div>
+
+<div class="card"><h2>3 · Success probability by iteration</h2><canvas id="c2"></canvas>
+<p id="s3" class="mut"></p></div>
+
+<div class="card"><h2>4 · Simulated measurement</h2>
+<div class="row"><button id="meas">Run simulation</button></div>
+<p id="s4" style="margin:10px 0 0">Apply iterations, then select “Run simulation” to draw one measurement outcome.</p></div>
+
+<p class="mut">Note: this page runs entirely within the web browser. No data are transmitted, and no quantum hardware is used; all results are simulated for demonstration. Grover’s algorithm provides a quadratic speedup for unstructured search, not the exponential speedup associated with Shor’s algorithm.</p>
+</main><script>
+const $=id=>document.getElementById(id);
+const css=v=>getComputedStyle(document.documentElement).getPropertyValue(v);
+let n,N,m,k,amp,theta,kopt;
+for(let i=3;i<=6;i++)$('n').add(new Option(`${i} (N = ${2**i})`,i));
+const bin=i=>i.toString(2).padStart(n,'0');
+function setN(){n=+$('n').value;N=2**n;$('m').innerHTML='';
+ for(let i=0;i<N;i++)$('m').add(new Option(`${i}  (|${bin(i)}⟩)`,i));
+ $('m').selectedIndex=Math.floor(Math.random()*N);reset();}
+function reset(){m=+$('m').value;k=0;amp=new Float64Array(N).fill(1/Math.sqrt(N));
+ theta=Math.asin(1/Math.sqrt(N));kopt=Math.round(Math.PI/(4*theta)-.5);
+ $('s1').innerHTML=`Search space: N = ${N}. A conventional search needs about ${N/2} oracle queries on average (up to ${N}). Grover’s algorithm needs about <b>${kopt}</b> iterations, each using one oracle query.`;
+ $('s4').textContent='Apply iterations, then select “Run simulation” to draw one measurement outcome.';update();}
+function step(){amp[m]*=-1;let mean=0;for(const a of amp)mean+=a;mean/=N;
+ for(let i=0;i<N;i++)amp[i]=2*mean-amp[i];k++;update();}
+function update(){const p=amp[m]**2;
+ $('s2').textContent=`Iteration ${k}  ·  P(marked item) = ${(p*100).toFixed(1)}%`;
+ $('s3').innerHTML=`The success probability follows sin²((2k+1)θ), where sin θ = 1/√N. It peaks at about <b>k = ${kopt}</b> iterations and then <i>decreases</i> if iterations continue, so the algorithm must be stopped at the right point.`;draw();}
+function prep(c){const d=devicePixelRatio||1,w=c.clientWidth,h=c.clientHeight;c.width=w*d;c.height=h*d;
+ const g=c.getContext('2d');g.scale(d,d);return[g,w,h]}
+function draw(){
+ let [g,w,h]=prep($('c1'));const bw=w/N;
+ for(let i=0;i<N;i++){const bh=amp[i]**2*(h-22);
+  g.fillStyle=i==m?css('--ac2'):css('--ac');g.globalAlpha=i==m?1:.7;
+  g.fillRect(i*bw+1,h-bh-14,Math.max(bw-2,1),Math.max(bh,1));g.globalAlpha=1;
+  if(N<=16){g.fillStyle=css('--mut');g.font='10px system-ui';g.textAlign='center';g.fillText(i,i*bw+bw/2,h-2);}}
+ g.fillStyle=css('--mut');g.font='10px system-ui';g.textAlign='left';g.fillText('P = 1',0,10);
+ if(N>16){g.fillText('item 0',0,h-2);g.textAlign='right';g.fillText('item '+(N-1),w,h-2);}
+ [g,w,h]=prep($('c2'));const K=Math.ceil(Math.PI/(2*theta)),px=x=>20+x/K*(w-30),py=y=>h-18-y*(h-30);
+ g.strokeStyle=css('--bd');g.lineWidth=1;g.beginPath();g.moveTo(20,h-18);g.lineTo(w-10,h-18);g.stroke();
+ g.strokeStyle=css('--ac');g.lineWidth=2;g.beginPath();
+ for(let x=0;x<=K;x+=.1){const y=Math.sin((2*x+1)*theta)**2;x?g.lineTo(px(x),py(y)):g.moveTo(px(x),py(y))}g.stroke();
+ g.strokeStyle=css('--mut');g.setLineDash([4,4]);g.beginPath();g.moveTo(px(kopt),py(0));g.lineTo(px(kopt),py(1));g.stroke();g.setLineDash([]);
+ g.fillStyle=css('--mut');g.font='10px system-ui';g.textAlign='center';g.fillText('optimal k = '+kopt,px(kopt),10);
+ g.textAlign='left';g.fillText('0',px(0)-3,h-4);g.textAlign='right';g.fillText('iterations k = '+K,w-10,h-4);
+ const yk=Math.sin((2*Math.min(k,K)+1)*theta)**2;g.fillStyle=css('--ac2');g.beginPath();g.arc(px(Math.min(k,K)),py(yk),6,0,7);g.fill();}
+function measure(){let u=Math.random(),c=0,x=0;for(;x<N;x++){c+=amp[x]**2;if(c>=u)break}x=Math.min(x,N-1);
+ const hit=x==m;
+ $('s4').innerHTML=`Measured item: <b>${x}</b> (|${bin(x)}⟩), which has probability ${(amp[x]**2*100).toFixed(1)}%.<br>`+
+  (hit?`<span class="ok">✓ This is the marked item (${m}).</span>`:`This is not the marked item (${m}). Grover’s algorithm is probabilistic, so the outcome can be incorrect. Run the simulation again.`)+
+  (k==0?'<br>No iterations have been applied, so every item is equally likely.':'');}
+$('n').onchange=setN;$('m').onchange=reset;$('rnd').onclick=()=>{$('m').selectedIndex=Math.floor(Math.random()*N);reset()};
+$('step').onclick=step;$('rst').onclick=reset;$('meas').onclick=measure;
+addEventListener('resize',draw);setN();
+</script></body></html>
